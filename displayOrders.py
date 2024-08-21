@@ -1,10 +1,12 @@
 import time
 import json
 from flask import Flask, request, jsonify, render_template_string
+from flask_socketio import SocketIO
 import requests
 import threading
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 
 # Store orders in a dictionary
 orders = {}
@@ -19,9 +21,11 @@ def send_orders_to_server(orders):
 
 @app.route('/submit_orders', methods=['POST'])
 def submit_orders():
+    orders.clear()
     data = request.get_json()
     for order_id, order_details in data.items():
         orders[order_id] = order_details
+    socketio.emit('update_orders', {'message': 'Orders updated'})
     return jsonify({"message": "Orders received"}), 200
 
 @app.route('/display_orders')
@@ -29,8 +33,9 @@ def display_orders_chrome():
     display_data = []
     for order_id, order_details in orders.items():
         paid_status = "Paid" if "paid" in order_details else "Unpaid"
+        order_time = order_details.pop(0)
         order_items = [item for item in order_details if item != "paid"]
-        display_data.append({"order_id": order_id, "status": paid_status, "items": order_items})
+        display_data.append({"order_id": order_id, "status": paid_status, "time": order_time, "items": order_items})
     
     # Render orders in a simple HTML template
     html_template = '''
@@ -60,6 +65,16 @@ def display_orders_chrome():
                 display: none;
             }
         </style>
+        <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            document.addEventListener("DOMContentLoaded", function() {
+                var socket = io();
+                socket.on('update_orders', function(data) {
+                    console.log(data.message);
+                    location.reload();
+                });
+            });
+        </script>
     </head>
     <body>
         <h1>Customer Orders</h1>
@@ -67,12 +82,14 @@ def display_orders_chrome():
             <tr>
                 <th>Order ID</th>
                 <th>Status</th>
+                <th>Time</th>
                 <th>Items</th>
             </tr>
             {% for order in orders %}
             <tr>
                 <td>{{ order['order_id'] }}</td>
                 <td class="{{ 'unpaid' if order['status'] == 'Unpaid' else 'paid' }}">{{ order['status'] }}</td>
+                <td>{{ order['time'] }}</td>
                 <td>{{ order['items'] | join(', ') }}</td>
             </tr>
             {% endfor %}
@@ -219,7 +236,7 @@ if __name__ == "__main__":
     path = "."  # Directory to watch
     # run the flask app in a separate thread so that the main thread can monitor the file system
     # Create a new thread to run the Flask app
-    flask_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
+    flask_thread = threading.Thread(target=socketio.run, kwargs={'app': app, 'host': '0.0.0.0', 'port': 5000})
 
     # Start the Flask app thread
     flask_thread.start()
