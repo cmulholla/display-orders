@@ -1,11 +1,13 @@
 # Summary
 This is a small python program which runs in the background of an order taking computer, waits for updates to a .txt file, calculates the current orders, then prints them to the console.
+
 Functionality:
 - create <customer_name> <list of orders>
 - modify <customer_name> <overwritten order>
 - pay <customer_name>
   - Displays (paid) next to the user's name. If called more than once, it will be added to their order.
 - delete <customer_name>
+
 Example orders.txt file:
 ```
 create Alfred_1 ['Mayda', 'Elricia', 'Kathlma']
