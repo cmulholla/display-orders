@@ -1,9 +1,0 @@
-create William_4995 ['Gilbehan', 'Jamesel', 'Stephaur']
-create Mae_4996 ['Cecinia', 'Paulaamar', 'Davida']
-create Hector_4997 ['Jameharles']
-create Rose_4998 ['Roria', 'Patry']
-create Carol_4999 ['Hollis']
-create Jason_5000 ['Carlqueline', 'Jerryertha']
-delete Jason_5000
-delete Carol_4999
-create test ['1:23am', 'potatoes']

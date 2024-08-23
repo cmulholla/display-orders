@@ -1,15 +1,14 @@
 import time
 import json
-from flask import Flask, request, jsonify, render_template_string
-from flask_socketio import SocketIO
-import requests
+from flask import Flask, request, jsonify, render_template_string, Response
 import threading
+import requests
 
 app = Flask(__name__)
-socketio = SocketIO(app)
 
 # Store orders in a dictionary
 orders = {}
+order_update_event = threading.Event()
 
 @app.route('/')
 def home():
@@ -17,24 +16,39 @@ def home():
     return display_orders_chrome()
 
 def send_orders_to_server(orders):
+    #orders.clear()
+    #data = request.get_json()
+    #for order_id, order_details in data.items():
+    #    orders[order_id] = order_details
+    
     requests.post("http://127.0.0.1:5000/submit_orders", json=orders)
 
 @app.route('/submit_orders', methods=['POST'])
 def submit_orders():
-    orders.clear()
+    #orders.clear()
     data = request.get_json()
     for order_id, order_details in data.items():
+        if len(order_details) == 0:
+            continue
         orders[order_id] = order_details
-    socketio.emit('update_orders', {'message': 'Orders updated'})
+    order_update_event.set()  # Signal that orders have been updated
     return jsonify({"message": "Orders received"}), 200
 
 @app.route('/display_orders')
 def display_orders_chrome():
     display_data = []
     for order_id, order_details in orders.items():
+        # if nothing is in order details, delete the entry.
+        #if order_details == []:
+        #    continue
         paid_status = "Paid" if "paid" in order_details else "Unpaid"
-        order_time = order_details.pop(0)
-        order_items = [item for item in order_details if item != "paid"]
+        # if the first character of the first entry in order_details is a number, then the order_time is the first entry in order_details
+        if order_details[0][0].isdigit():
+            order_time = order_details[0]
+        else:
+            order_time = "N/A"
+
+        order_items = [item for item in order_details[1:] if item != "paid"]
         display_data.append({"order_id": order_id, "status": paid_status, "time": order_time, "items": order_items})
     
     # Render orders in a simple HTML template
@@ -65,14 +79,13 @@ def display_orders_chrome():
                 display: none;
             }
         </style>
-        <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
         <script type="text/javascript" charset="utf-8">
             document.addEventListener("DOMContentLoaded", function() {
-                var socket = io();
-                socket.on('update_orders', function(data) {
-                    console.log(data.message);
+                var eventSource = new EventSource("/stream");
+                eventSource.onmessage = function(event) {
+                    console.log(event.data);
                     location.reload();
-                });
+                };
             });
         </script>
     </head>
@@ -87,7 +100,7 @@ def display_orders_chrome():
             </tr>
             {% for order in orders %}
             <tr>
-                <td>{{ order['order_id'] }}</td>
+                <td>{{ order['order_id'].replace("_", " ") }}</td>
                 <td class="{{ 'unpaid' if order['status'] == 'Unpaid' else 'paid' }}">{{ order['status'] }}</td>
                 <td>{{ order['time'] }}</td>
                 <td>{{ order['items'] | join(', ') }}</td>
@@ -104,6 +117,16 @@ def display_orders_chrome():
     print("Display data:")
     print(display_data)
     return render_template_string(html_template, orders=display_data)
+
+@app.route('/stream')
+def stream():
+    def event_stream():
+        while True:
+            order_update_event.wait()  # Wait for an update
+            yield f'data: Orders updated\n\n'
+            order_update_event.clear()  # Clear the event
+
+    return Response(event_stream(), content_type='text/event-stream')
 
 class CustomerOrders:
     def __init__(self, json_file, order_file):
@@ -209,7 +232,10 @@ class MyHandler():
         # find the current date and add it to the orders file name
         self.date = time.strftime("%m%d")
         print(f"Watching for changes in orders{self.date}.txt")
-        self.orders = CustomerOrders("./json.txt", f"./orders{self.date}.txt")
+        try:
+            self.orders = CustomerOrders("./json.txt", f"./orders{self.date}.txt")
+        except:
+            print("Error parsing the orders file.")
 
     def on_modified(self, event):
         current_time = time.time()
@@ -236,10 +262,13 @@ if __name__ == "__main__":
     path = "."  # Directory to watch
     # run the flask app in a separate thread so that the main thread can monitor the file system
     # Create a new thread to run the Flask app
-    flask_thread = threading.Thread(target=socketio.run, kwargs={'app': app, 'host': '0.0.0.0', 'port': 5000})
+    flask_thread = threading.Thread(target=app.run, kwargs={'host': '0.0.0.0', 'port': 5000})
 
     # Start the Flask app thread
     flask_thread.start()
+
+    # Wait for the thread to finish starting
+    
 
     event_handler = MyHandler()
 
