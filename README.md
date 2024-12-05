@@ -19,6 +19,6 @@ pay Mildred_2
 delete Mildred_2
 ```
 Example of 3 different orders:
-![example image]([http://url/to/img.png](https://private-user-images.githubusercontent.com/99295376/361945516-61eef01e-0872-4795-9f9d-6eff908c21f4.png)
+![example image](https://github.com/[cmulholla]/display-orders/blob/main/exampleReadMe.png?raw=true)
 
 This program is currently in use 24/7 at the [Neighborhood Sandwich Shack](https://neighborhoodsandwichshack.com).
